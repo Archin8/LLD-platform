@@ -1,0 +1,67 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Problem {
+  id                  String     @id @default(cuid())
+  title               String
+  slug                String     @unique
+  description         String
+  requirements        String[]   // bullet list of functional requirements
+  difficulty          Difficulty
+  requiresAbstraction String[]   @default([]) // required abstractions for InterfaceUsageRule
+  createdAt           DateTime   @default(now())
+  attempts            Attempt[]
+}
+
+enum Difficulty {
+  EASY
+  MEDIUM
+  HARD
+}
+
+model Attempt {
+  id          String        @id @default(cuid())
+  problemId   String
+  problem     Problem       @relation(fields: [problemId], references: [id], onDelete: Cascade)
+  submission  Submission?
+  status      AttemptStatus @default(DRAFT)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+}
+
+enum AttemptStatus {
+  DRAFT        // learner is still working
+  SUBMITTED    // submitted, awaiting evaluation
+  EVALUATING   // evaluation in progress
+  COMPLETED    // feedback ready
+  FAILED       // evaluation failed
+}
+
+model Submission {
+  id            String    @id @default(cuid())
+  attemptId     String    @unique
+  attempt       Attempt   @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  classes       Json      // structured: [{ name, responsibility, fields[], methods[], type: "class"|"interface" }]
+  relationships Json      // structured: [{ from, to, kind: "inherits"|"implements"|"composes"|"aggregates"|"uses" }]
+  rationale     String?   // learner's free-text explanation of trade-offs
+  submittedAt   DateTime  @default(now())
+  feedback      Feedback?
+}
+
+model Feedback {
+  id            String     @id @default(cuid())
+  submissionId  String     @unique
+  submission    Submission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  score         Int        // 0–100 composite score
+  strengths     String[]
+  issues        Json       // [{ severity, message, ruleId }]
+  suggestions   String[]
+  evaluatorType String     // "rule-based" | "llm" | "composite"
+  createdAt     DateTime   @default(now())
+}
